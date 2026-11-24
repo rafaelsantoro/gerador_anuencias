@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Gerador de Declaração de Reconhecimento de Limite (Anuência de Confrontantes)</title>
+
+  <!-- Tailwind CSS (local) -->
+  <script src="libs/tailwind.js"></script>
+
+  <!-- Bibliotecas locais (pasta libs/) -->
+  <script src="libs/jspdf.umd.min.js"></script>
+  <script src="libs/jspdf.plugin.autotable.min.js"></script>
+  <script src="libs/pdf-lib.min.js"></script>
+  <script src="libs/jszip.min.js"></script>
+  <script src="libs/FileSaver.min.js"></script>
+
+  <!-- Tailwind Custom Config -->
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#f0fdf4',
+              100: '#dcfce7',
+              600: '#15803d',
+              700: '#166534',
+              800: '#14532d',
+              900: '#052e16',
+            },
+            slate: {
+              50: '#f4faf5', 100: '#e4f1e7', 200: '#cfe3d4', 300: '#b0cdb7', 400: '#82a28b',
+              500: '#5d7e67', 600: '#46644f', 700: '#344d3c', 800: '#243a2b', 900: '#13241a', 950: '#0a150f'
+            },
+            blue: {
+              50: '#ecfdf3', 100: '#d1fae0', 200: '#a7f3c6', 300: '#6ee7a4', 400: '#34d399',
+              500: '#10b981', 600: '#059669', 700: '#047857', 800: '#065f46', 900: '#064e3b'
+            },
+            sky: {
+              50: '#f0fdf6', 100: '#dcfce9', 200: '#bbf7d3', 300: '#86efb0', 400: '#4ade80',
+              500: '#22c55e', 600: '#16a34a', 700: '#15803d', 800: '#166534', 900: '#14532d'
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    /* Estilos de Folha A4 com Margens Estreitas de 1,27cm (12,7mm) */
+    .a4-page {
+      width: 210mm;
+      min-height: 297mm;
+      padding: 1.27cm;
+      margin: 0 auto;
+      background: white;
+      box-shadow: 0 4px 25px rgba(0,0,0,0.2);
+      font-family: 'Times New Roman', Times, serif;
+      font-size: 11pt;
+      line-height: 1.4;
+      color: #000;
+      box-sizing: border-box;
+      position: relative;
+    }
+
+    @media print {
+      body { background: white !important; }
+      .no-print { display: none !important; }
+      .a4-page {
+        box-shadow: none !important;
+        margin: 0 !important;
+        width: 100% !important;
+        padding: 1.27cm !important;
+      }
+    }
+
+    .card-transition {
+      transition: all 0.2s ease-in-out;
+    }
+
+    /* Fundo verde claro apenas na interface (não afeta PDF/DOC nem a folha A4) */
+    @media screen {
+      body { background-color: #d9eedd !important; }
+      .bg-white:not(.a4-page) { background-color: #f1faf3; }
+      input:not([type=checkbox]):not([type=radio]):not([type=file]):not(.bg-transparent),
+      textarea, select { background-color: #f6fcf7; }
+    }
+
+    /* Scrollbar personalizada */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #e4f1e7;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #b0cdb7;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #82a28b;
+    }
+  </style>
+</head>
+<body class="bg-slate-100 text-slate-800 min-h-screen font-sans pb-24">
+
+  <!-- NOTIFICAÇÃO TOAST -->
+  <div id="toast" class="fixed top-5 right-5 z-50 transform translate-x-full opacity-0 transition-all duration-300 bg-slate-900 text-white px-5 py-3 rounded-xl shadow-2xl flex items-center gap-3 border border-slate-700 pointer-events-none">
+    <span id="toast-icon">ℹ️</span>
+    <span id="toast-msg" class="text-sm font-medium"></span>
+  </div>
+
+  <!-- CABEÇALHO DA APLICAÇÃO -->
+  <header class="bg-gradient-to-r from-brand-900 via-brand-800 to-slate-900 text-white shadow-lg no-print sticky top-0 z-40">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+      <div class="flex items-center gap-3">
+        <div class="flex flex-col items-center gap-0.5">
+          <button type="button" onclick="abrirModalCafe()" title="Incentivo" aria-label="Incentivo" class="p-2 rounded-xl border border-blue-300/40 shadow-md transition hover:scale-105 hover:brightness-125" style="background-color:#0b2a5b;">
+            <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+              <path d="M17 8h1a4 4 0 010 8h-1" />
+              <path d="M3 8h14v9a4 4 0 01-4 4H7a4 4 0 01-4-4V8z" />
+              <path d="M6 2v3M10 2v3M14 2v3" />
+            </svg>
+          </button>
+          <span class="text-[10px] font-semibold text-emerald-100 leading-none">Incentivo</span>
+        </div>
+        <div>
+          <h1 class="text-lg font-bold tracking-tight text-white flex items-center gap-2">
+            Gerador de Anuências de Confrontantes
+            <span class="text-[11px] font-semibold bg-emerald-500/30 text-emerald-200 px-2 py-0.5 rounded-full border border-emerald-400/30">PDF & Word</span>
+          </h1>
+          <p class="text-xs text-slate-300">Georreferenciamento • Suporte a Múltiplos Trechos e Co-proprietários • Qualificação Completa</p>
+        </div>
+      </div>
+
+      <!-- AÇÕES DE TOPO -->
+      <div class="flex flex-wrap items-center gap-2">
+        <button onclick="carregarExemploFicticio()" class="bg-amber-500 hover:bg-amber-600 text-slate-950 px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-sm">
+          <span>✨</span> Preencher Exemplo Fictício
+        </button>
+        <button onclick="limparTudo(true)" class="bg-rose-700 hover:bg-rose-800 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 shadow-sm">
+          <span>🗑️</span> Limpar Tudo
+        </button>
+        <button onclick="exportarJSON()" class="bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1 border border-slate-700">
+          <span>💾</span> Salvar (.json)
+        </button>
+        <label class="bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1 border border-slate-700 cursor-pointer">
+          <span>📂</span> Abrir (.json)
+          <input type="file" id="file-json" accept=".json" class="hidden" onchange="carregarJSON(event)" />
+        </label>
+      </div>
+    </div>
+  </header>
+
+  <!-- CONTEÚDO PRINCIPAL (FORMULÁRIOS CENTRALIZADOS EM LARGURA AMPLA) -->
+  <main class="max-w-[1120px] mx-auto px-4 sm:px-6 lg:px-8 mt-6">
+    <div class="space-y-6">
+
+      <!-- CARD 1: EMPRESA, LOGO E RESPONSÁVEL TÉCNICO (COLLAPSIBLE / LOCALSTORAGE) -->
+      <section class="bg-white rounded-2xl shadow-sm border border-slate-200/90 overflow-hidden no-print">
+        <div class="bg-slate-900 text-white p-4 flex items-center justify-between cursor-pointer select-none" onclick="toggleSecao('secao-empresa')">
+          <div class="flex items-center gap-3">
+            <div class="w-7 h-7 rounded-lg bg-blue-600 text-white flex items-center justify-center font-bold text-xs">1</div>
+            <div>
+              <h2 class="text-sm font-bold text-white">Empresa, Logo e Responsável Técnico (RT)</h2>
+              <p class="text-[11px] text-slate-400">Personalize a identidade do escritório, logo e profissional credenciado INCRA</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <button onclick="event.stopPropagation(); salvarPadraoEmpresa();" class="text-[11px] bg-blue-700 hover:bg-blue-600 text-white px-2.5 py-1 rounded-md font-semibold transition flex items-center gap-1">
+              ⭐ Salvar Padrão
+            </button>
+            <button onclick="event.stopPropagation(); limparPadraoEmpresa();" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-1 rounded-md font-semibold transition border border-slate-700">
+              Limpar Padrão
+            </button>
+            <span id="icon-secao-empresa" class="text-slate-400 text-sm">▼</span>
+          </div>
+        </div>
+
+        <div id="secao-empresa" class="p-5 space-y-5">
+          <!-- LOGO DA EMPRESA & DADOS CADASTRAIS -->
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4 pb-4 border-b border-slate-100">
+            <!-- AREA DE UPLOAD DO LOGO -->
+            <div class="md:col-span-1 bg-slate-50 p-3 rounded-xl border border-dashed border-slate-300 flex flex-col items-center justify-center text-center">
+              <label class="block text-[11px] font-bold text-slate-700 mb-2">Logotipo da Empresa</label>
+              <div id="logo-preview-container" class="mb-2 hidden">
+                <img id="logo-preview-img" src="" alt="Logo Empresa" class="max-h-16 object-contain mx-auto rounded border border-slate-200 p-1 bg-white" />
+              </div>
+              <div class="flex flex-col gap-1.5 w-full">
+                <label class="bg-white hover:bg-slate-100 text-slate-700 text-xs px-2.5 py-1.5 rounded-lg border border-slate-300 font-medium cursor-pointer shadow-sm transition text-center">
+                  <span>📷 Enviar Logo (PNG/JPG)</span>
+                  <input type="file" id="input-logo" accept="image/png, image/jpeg, image/jpg" class="hidden" onchange="carregarLogo(event)" />
+                </label>
+                <button id="btn-remover-logo" onclick="removerLogo()" class="text-[11px] text-rose-600 hover:underline hidden">Remover Logo</button>
+              </div>
+            </div>
+
+            <!-- DADOS DA EMPRESA -->
+            <div class="md:col-span-2 space-y-3">
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label class="block text-xs font-semibold text-slate-700 mb-1">Nome da Empresa / Escritório</label>
+                  <input type="text" id="emp-nome" value="" placeholder="Ex: GeoExemplo Topografia Ltda" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div>
+                  <label class="block text-xs font-semibold text-slate-700 mb-1">Especialidade / Subtítulo</label>
+                  <input type="text" id="emp-subtitulo" value="" placeholder="Ex: Georreferenciamento e Agrimensura" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div>
+                  <label class="block text-xs font-semibold text-slate-700 mb-1">Telefone / WhatsApp</label>
+                  <input type="text" id="emp-telefone" value="" placeholder="Ex: (00) 99999-8888" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div>
+                  <label class="block text-xs font-semibold text-slate-700 mb-1">E-mail de Contato</label>
+                  <input type="text" id="emp-email" value="" placeholder="Ex: contato@geoexemplo.com.br" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Endereço Completo (Cabeçalho/Rodapé)</label>
+                <input type="text" id="emp-endereco" value="" placeholder="Ex: Av. das Palmeiras, nº 100 - Centro, Cidade Exemplo/SP, CEP 00000-000" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+            </div>
+          </div>
+
+          <!-- DADOS DO RESPONSÁVEL TÉCNICO (RT) -->
+          <div class="space-y-3">
+            <h3 class="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+              <span>📐</span> Responsável Técnico Credenciado (INCRA)
+            </h3>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Nome Completo do RT</label>
+                <input type="text" id="rt-nome" value="" placeholder="Ex: Eng. Carlos Alberto Fictício" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Título Profissional / Qualificação</label>
+                <input type="text" id="rt-titulo" value="" placeholder="Ex: Engenheiro Agrônomo / Agrimensor" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Registro CREA / CFT</label>
+                <input type="text" id="rt-crea" value="" placeholder="Ex: CREA-SP 0000000000" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">RG do RT</label>
+                <input type="text" id="rt-rg" value="" placeholder="Ex: 00.111.222-3 SSP/SP" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">CPF do RT</label>
+                <input type="text" id="rt-cpf" value="" placeholder="Ex: 000.111.222-33" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Código INCRA / SIGEF</label>
+                <input type="text" id="rt-incra" value="" placeholder="Ex: XYZ" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Nº TRT / ART</label>
+                <input type="text" id="rt-trt" value="" placeholder="Ex: BR20260000001" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <div class="md:col-span-2 flex items-center pt-3">
+                <label class="flex items-center gap-2 text-xs font-medium text-slate-800 cursor-pointer select-none">
+                  <input type="checkbox" id="rt-incluir-assinatura" checked class="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500" />
+                  <span>Incluir bloco de assinatura do Responsável Técnico como testemunha</span>
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- CARD 2: IMÓVEL OBJETO DO TRABALHO (IMÓVEL 2) + PROPRIETÁRIO PRINCIPAL & CO-PROPRIETÁRIOS -->
+      <section class="bg-white rounded-2xl shadow-sm border border-slate-200/90 p-5 space-y-5 no-print">
+        <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div class="flex items-center gap-3">
+            <div class="w-7 h-7 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-xs">2</div>
+            <div>
+              <h2 class="text-sm font-bold text-slate-900">Imóvel Objeto do Trabalho (IMÓVEL 2) & Proprietários</h2>
+              <p class="text-[11px] text-slate-500">Qualificação completa do imóvel do cliente, proprietário principal e co-proprietários</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- DADOS DO IMÓVEL OBJETO -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 bg-slate-50 p-4 rounded-xl border border-slate-200/70">
+          <div class="lg:col-span-2">
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Nome do Imóvel Objeto (Imóvel 2)</label>
+            <input type="text" id="obj-nome" value="" placeholder="Ex: Fazenda Horizonte Azul" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Matrícula nº (Imóvel Objeto)</label>
+            <input type="text" id="obj-matricula" value="" placeholder="Ex: 12.345" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">CCIR nº (Imóvel Objeto)</label>
+            <input type="text" id="obj-ccir" value="" placeholder="Ex: 999.888.777.666-5" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+
+          <div class="lg:col-span-2">
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Município / Comarca / Cartório de Registro</label>
+            <input type="text" id="obj-municipio" value="" placeholder="Ex: Cidade Exemplo - SP" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+
+          <div class="lg:col-span-2">
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Local e Data da Declaração</label>
+            <input type="text" id="doc-data" value="" placeholder="Ex: Cidade Exemplo - SP, 23 de novembro de 2026" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+        </div>
+
+        <!-- QUALIFICAÇÃO DO PROPRIETÁRIO PRINCIPAL DO IMÓVEL OBJETO -->
+        <div class="space-y-3 pt-1">
+          <h3 class="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+            <span>👤</span> Proprietário Principal do Imóvel Objeto
+          </h3>
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 bg-blue-50/40 p-4 rounded-xl border border-blue-100">
+            <div class="lg:col-span-2">
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Nome Completo / Razão Social</label>
+              <input type="text" id="obj-prop-nome" value="" placeholder="Ex: João da Silva Exemplo" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">CPF / CNPJ</label>
+              <input type="text" id="obj-prop-cpf" value="" placeholder="000.111.222-33" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">RG / Órgão Expedidor</label>
+              <input type="text" id="obj-prop-rg" value="" placeholder="11.222.333-4 SSP/SP" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Nacionalidade</label>
+              <input type="text" id="obj-prop-nac" value="" placeholder="brasileiro(a)" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Estado Civil</label>
+              <input type="text" id="obj-prop-ec" value="" placeholder="casado(a)" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Profissão</label>
+              <input type="text" id="obj-prop-prof" value="" placeholder="agricultor" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+            <div class="lg:col-span-4">
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Endereço Residencial Completo</label>
+              <input type="text" id="obj-prop-end" value="" placeholder="Ex: Rodovia Exemplo, Km 10, Zona Rural, Cidade Exemplo/SP, CEP 00000-000" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+          </div>
+        </div>
+
+        <!-- CO-PROPRIETÁRIOS DO IMÓVEL OBJETO -->
+        <div class="space-y-3 pt-2">
+          <div class="flex items-center justify-between">
+            <h3 class="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+              <span>👥</span> Co-proprietários do Imóvel Objeto
+            </h3>
+            <button onclick="adicionarCoProprietarioObjeto()" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 shadow-sm">
+              + Adicionar Co-proprietário (Imóvel Objeto)
+            </button>
+          </div>
+
+          <div id="obj-coproprietarios-container" class="space-y-3"></div>
+        </div>
+      </section>
+
+      <!-- CARD 3: GESTÃO DE CONFRONTANTES (IMÓVEL 1) COM CO-PROPRIETÁRIOS E MÚLTIPLOS TRECHOS -->
+      <section class="space-y-4 no-print">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200/90 shadow-sm">
+          <div class="flex items-center gap-3">
+            <div class="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-xs">3</div>
+            <div>
+              <h2 class="text-sm font-bold text-slate-900">Confrontantes (Imóvel 1), Co-proprietários & Trechos</h2>
+              <p class="text-[11px] text-slate-500">Cadastre vizinhos confrontantes, co-proprietários do trecho e tabelas de coordenadas</p>
+            </div>
+          </div>
+
+          <!-- BOTÃO EM DESTAQUE LARANJA CHAMATIVO -->
+          <button onclick="adicionarConfrontante()" class="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-md shadow-orange-500/20">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+            + Adicionar Confrontante
+          </button>
+        </div>
+
+        <!-- CONTAINER DOS CARDS DE CONFRONTANTES -->
+        <div id="confrontantes-container" class="space-y-5"></div>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- BARRA DE AÇÕES FLUTUANTE INFERIOR -->
+  <div class="fixed bottom-0 left-0 right-0 bg-slate-900/95 backdrop-blur border-t border-slate-800 p-3.5 z-30 no-print shadow-2xl">
+    <div class="max-w-[1120px] mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
+      <div class="text-xs text-slate-300 flex items-center gap-2">
+        <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+        <span id="stat-confrontantes">0 Confrontante(s) cadastrado(s)</span>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
+        <button onclick="adicionarConfrontante()" class="bg-orange-500 hover:bg-orange-600 text-white px-3.5 py-2 rounded-xl text-xs font-bold transition shadow-md shadow-orange-500/20">
+          + Novo Confrontante
+        </button>
+        <button onclick="baixarTodasDOC()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-lg shadow-blue-600/20">
+          <span>📄</span> Baixar Todos em .DOC (.zip)
+        </button>
+        <button onclick="baixarTodasPDF()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-lg shadow-emerald-600/20">
+          <span>⚡</span> Baixar Todos em PDF (.zip)
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL DE PRÉ-VISUALIZAÇÃO A4 -->
+  <div id="modal-preview" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 hidden flex flex-col no-print">
+    <!-- BARRA SUPERIOR DO MODAL -->
+    <div class="bg-slate-900 text-white px-6 py-3 border-b border-slate-800 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <span class="w-3 h-3 rounded-full bg-emerald-400 animate-pulse"></span>
+        <h3 class="font-bold text-sm text-white flex items-center gap-2">
+          Pré-visualização A4 da Declaração
+        </h3>
+        <div id="selector-confrontante-modal">
+          <!-- Populado dinamicamente pelo JS -->
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <button id="btn-modal-doc" onclick="gerarDocxModal()" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1">
+          <span>📄</span> Baixar .DOC
+        </button>
+        <button id="btn-modal-pdf" onclick="gerarPDFModal()" class="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1">
+          <span>⚡</span> Baixar PDF
+        </button>
+        <button onclick="fecharModalPreview()" class="text-slate-400 hover:text-white font-bold text-lg px-2 ml-2">✕</button>
+      </div>
+    </div>
+
+    <!-- CORPO DO MODAL COM SCROLL -->
+    <div class="flex-1 overflow-y-auto p-4 sm:p-8 bg-slate-700/60 flex justify-center items-start">
+      <div id="modal-a4-preview-content" class="a4-page shadow-2xl">
+        <!-- Renderizado dinamicamente -->
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL INCENTIVO (CAFÉ) -->
+  <div id="modal-cafe" class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-[60] hidden items-center justify-center p-4 no-print" onclick="if(event.target===this) fecharModalCafe()">
+    <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 text-center space-y-3">
+      <div class="mx-auto w-14 h-14 rounded-2xl flex items-center justify-center" style="background-color:#0b2a5b;">
+        <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+          <path d="M17 8h1a4 4 0 010 8h-1" />
+          <path d="M3 8h14v9a4 4 0 01-4 4H7a4 4 0 01-4-4V8z" />
+          <path d="M6 2v3M10 2v3M14 2v3" />
+        </svg>
+      </div>
+      <p class="text-base font-bold text-slate-900">Muito obrigado por utilizar essa solução!</p>
+      <p class="text-sm text-slate-700">Colabore com um café para incentivar mais projetos como esse!</p>
+      <p class="text-sm text-slate-800 font-semibold">Mande um PIX para o QR abaixo:</p>
+      <svg viewBox="0 0 69 69" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="QR Code PIX" shape-rendering="crispEdges" class="mx-auto w-56 h-56 rounded-lg border border-slate-200"><rect width="69" height="69" fill="#ffffff"/><path fill="#000000" d="M4 4h7v1h-7zM12 4h1v1h-1zM16 4h1v1h-1zM18 4h1v1h-1zM21 4h3v1h-3zM26 4h1v1h-1zM29 4h1v1h-1zM37 4h1v1h-1zM41 4h1v1h-1zM46 4h1v1h-1zM48 4h2v1h-2zM51 4h2v1h-2zM55 4h2v1h-2zM58 4h7v1h-7zM4 5h1v1h-1zM10 5h1v1h-1zM15 5h3v1h-3zM21 5h3v1h-3zM26 5h2v1h-2zM30 5h1v1h-1zM32 5h2v1h-2zM35 5h2v1h-2zM38 5h1v1h-1zM40 5h1v1h-1zM43 5h1v1h-1zM45 5h1v1h-1zM50 5h3v1h-3zM55 5h2v1h-2zM58 5h1v1h-1zM64 5h1v1h-1zM4 6h1v1h-1zM6 6h3v1h-3zM10 6h1v1h-1zM13 6h4v1h-4zM18 6h2v1h-2zM21 6h5v1h-5zM28 6h2v1h-2zM31 6h1v1h-1zM33 6h1v1h-1zM36 6h1v1h-1zM38 6h2v1h-2zM42 6h1v1h-1zM44 6h2v1h-2zM47 6h3v1h-3zM52 6h1v1h-1zM54 6h3v1h-3zM58 6h1v1h-1zM60 6h3v1h-3zM64 6h1v1h-1zM4 7h1v1h-1zM6 7h3v1h-3zM10 7h1v1h-1zM13 7h2v1h-2zM16 7h1v1h-1zM18 7h1v1h-1zM27 7h1v1h-1zM29 7h1v1h-1zM33 7h1v1h-1zM35 7h4v1h-4zM40 7h2v1h-2zM43 7h1v1h-1zM50 7h2v1h-2zM54 7h1v1h-1zM56 7h1v1h-1zM58 7h1v1h-1zM60 7h3v1h-3zM64 7h1v1h-1zM4 8h1v1h-1zM6 8h3v1h-3zM10 8h1v1h-1zM12 8h1v1h-1zM16 8h3v1h-3zM21 8h2v1h-2zM24 8h2v1h-2zM28 8h2v1h-2zM31 8h6v1h-6zM38 8h3v1h-3zM43 8h1v1h-1zM45 8h1v1h-1zM49 8h1v1h-1zM53 8h3v1h-3zM58 8h1v1h-1zM60 8h3v1h-3zM64 8h1v1h-1zM4 9h1v1h-1zM10 9h1v1h-1zM12 9h1v1h-1zM15 9h1v1h-1zM19 9h3v1h-3zM25 9h3v1h-3zM29 9h1v1h-1zM31 9h2v1h-2zM36 9h2v1h-2zM39 9h6v1h-6zM46 9h3v1h-3zM50 9h2v1h-2zM53 9h2v1h-2zM58 9h1v1h-1zM64 9h1v1h-1zM4 10h7v1h-7zM12 10h1v1h-1zM14 10h1v1h-1zM16 10h1v1h-1zM18 10h1v1h-1zM20 10h1v1h-1zM22 10h1v1h-1zM24 10h1v1h-1zM26 10h1v1h-1zM28 10h1v1h-1zM30 10h1v1h-1zM32 10h1v1h-1zM34 10h1v1h-1zM36 10h1v1h-1zM38 10h1v1h-1zM40 10h1v1h-1zM42 10h1v1h-1zM44 10h1v1h-1zM46 10h1v1h-1zM48 10h1v1h-1zM50 10h1v1h-1zM52 10h1v1h-1zM54 10h1v1h-1zM56 10h1v1h-1zM58 10h7v1h-7zM16 11h6v1h-6zM23 11h1v1h-1zM25 11h2v1h-2zM29 11h1v1h-1zM32 11h1v1h-1zM36 11h1v1h-1zM40 11h1v1h-1zM43 11h2v1h-2zM46 11h2v1h-2zM49 11h1v1h-1zM51 11h1v1h-1zM55 11h1v1h-1zM5 12h7v1h-7zM13 12h1v1h-1zM16 12h2v1h-2zM20 12h1v1h-1zM22 12h1v1h-1zM24 12h3v1h-3zM28 12h1v1h-1zM32 12h6v1h-6zM39 12h3v1h-3zM45 12h3v1h-3zM49 12h1v1h-1zM52 12h1v1h-1zM56 12h1v1h-1zM59 12h2v1h-2zM64 12h1v1h-1zM8 13h2v1h-2zM11 13h1v1h-1zM14 13h3v1h-3zM19 13h1v1h-1zM22 13h4v1h-4zM30 13h1v1h-1zM36 13h1v1h-1zM38 13h4v1h-4zM44 13h1v1h-1zM46 13h1v1h-1zM51 13h3v1h-3zM55 13h1v1h-1zM58 13h2v1h-2zM64 13h1v1h-1zM4 14h2v1h-2zM7 14h1v1h-1zM9 14h3v1h-3zM13 14h1v1h-1zM16 14h1v1h-1zM19 14h5v1h-5zM25 14h1v1h-1zM28 14h1v1h-1zM32 14h2v1h-2zM40 14h1v1h-1zM43 14h1v1h-1zM45 14h1v1h-1zM49 14h2v1h-2zM52 14h2v1h-2zM55 14h1v1h-1zM57 14h1v1h-1zM59 14h1v1h-1zM61 14h1v1h-1zM63 14h2v1h-2zM4 15h6v1h-6zM12 15h1v1h-1zM14 15h7v1h-7zM22 15h1v1h-1zM29 15h3v1h-3zM33 15h1v1h-1zM35 15h10v1h-10zM46 15h4v1h-4zM55 15h1v1h-1zM57 15h1v1h-1zM59 15h2v1h-2zM8 16h3v1h-3zM12 16h1v1h-1zM14 16h2v1h-2zM17 16h1v1h-1zM19 16h2v1h-2zM23 16h5v1h-5zM30 16h2v1h-2zM34 16h2v1h-2zM37 16h2v1h-2zM40 16h1v1h-1zM42 16h1v1h-1zM49 16h1v1h-1zM51 16h2v1h-2zM56 16h2v1h-2zM61 16h1v1h-1zM64 16h1v1h-1zM4 17h4v1h-4zM12 17h1v1h-1zM15 17h1v1h-1zM17 17h5v1h-5zM23 17h1v1h-1zM25 17h4v1h-4zM31 17h1v1h-1zM37 17h8v1h-8zM46 17h4v1h-4zM58 17h1v1h-1zM60 17h2v1h-2zM63 17h1v1h-1zM5 18h1v1h-1zM7 18h2v1h-2zM10 18h4v1h-4zM15 18h4v1h-4zM20 18h2v1h-2zM23 18h1v1h-1zM25 18h1v1h-1zM31 18h4v1h-4zM37 18h2v1h-2zM40 18h1v1h-1zM43 18h1v1h-1zM45 18h1v1h-1zM50 18h1v1h-1zM52 18h3v1h-3zM57 18h1v1h-1zM59 18h1v1h-1zM61 18h1v1h-1zM64 18h1v1h-1zM4 19h1v1h-1zM9 19h1v1h-1zM12 19h2v1h-2zM17 19h3v1h-3zM21 19h1v1h-1zM23 19h1v1h-1zM25 19h2v1h-2zM28 19h1v1h-1zM30 19h1v1h-1zM33 19h2v1h-2zM36 19h1v1h-1zM40 19h5v1h-5zM46 19h1v1h-1zM48 19h2v1h-2zM52 19h2v1h-2zM55 19h2v1h-2zM58 19h4v1h-4zM63 19h2v1h-2zM4 20h1v1h-1zM6 20h1v1h-1zM9 20h5v1h-5zM15 20h1v1h-1zM18 20h1v1h-1zM22 20h4v1h-4zM28 20h2v1h-2zM31 20h1v1h-1zM33 20h1v1h-1zM35 20h1v1h-1zM39 20h2v1h-2zM42 20h2v1h-2zM47 20h1v1h-1zM51 20h2v1h-2zM56 20h3v1h-3zM62 20h1v1h-1zM64 20h1v1h-1zM4 21h3v1h-3zM9 21h1v1h-1zM13 21h1v1h-1zM15 21h2v1h-2zM23 21h2v1h-2zM28 21h2v1h-2zM31 21h1v1h-1zM33 21h1v1h-1zM38 21h1v1h-1zM41 21h1v1h-1zM43 21h2v1h-2zM46 21h2v1h-2zM55 21h1v1h-1zM58 21h2v1h-2zM61 21h1v1h-1zM4 22h2v1h-2zM8 22h3v1h-3zM12 22h1v1h-1zM20 22h1v1h-1zM22 22h2v1h-2zM25 22h1v1h-1zM29 22h2v1h-2zM34 22h2v1h-2zM38 22h1v1h-1zM42 22h2v1h-2zM45 22h1v1h-1zM47 22h3v1h-3zM51 22h5v1h-5zM57 22h1v1h-1zM59 22h2v1h-2zM63 22h2v1h-2zM4 23h2v1h-2zM7 23h1v1h-1zM15 23h1v1h-1zM22 23h1v1h-1zM24 23h1v1h-1zM26 23h1v1h-1zM30 23h1v1h-1zM32 23h2v1h-2zM36 23h1v1h-1zM38 23h2v1h-2zM41 23h1v1h-1zM46 23h1v1h-1zM48 23h2v1h-2zM51 23h1v1h-1zM53 23h1v1h-1zM55 23h1v1h-1zM58 23h1v1h-1zM60 23h2v1h-2zM63 23h2v1h-2zM5 24h2v1h-2zM10 24h2v1h-2zM13 24h2v1h-2zM16 24h4v1h-4zM22 24h1v1h-1zM24 24h3v1h-3zM29 24h4v1h-4zM34 24h2v1h-2zM38 24h1v1h-1zM40 24h1v1h-1zM42 24h2v1h-2zM46 24h2v1h-2zM52 24h1v1h-1zM54 24h2v1h-2zM58 24h1v1h-1zM62 24h1v1h-1zM64 24h1v1h-1zM4 25h5v1h-5zM11 25h2v1h-2zM14 25h1v1h-1zM17 25h4v1h-4zM22 25h3v1h-3zM26 25h1v1h-1zM28 25h4v1h-4zM33 25h1v1h-1zM35 25h1v1h-1zM38 25h1v1h-1zM46 25h2v1h-2zM52 25h1v1h-1zM58 25h1v1h-1zM60 25h1v1h-1zM5 26h1v1h-1zM7 26h2v1h-2zM10 26h1v1h-1zM12 26h1v1h-1zM14 26h2v1h-2zM20 26h1v1h-1zM22 26h4v1h-4zM27 26h4v1h-4zM32 26h4v1h-4zM40 26h4v1h-4zM45 26h1v1h-1zM47 26h1v1h-1zM50 26h1v1h-1zM52 26h3v1h-3zM57 26h1v1h-1zM61 26h1v1h-1zM63 26h2v1h-2zM4 27h2v1h-2zM12 27h2v1h-2zM16 27h1v1h-1zM19 27h2v1h-2zM22 27h1v1h-1zM24 27h1v1h-1zM26 27h2v1h-2zM29 27h1v1h-1zM31 27h1v1h-1zM33 27h4v1h-4zM40 27h1v1h-1zM44 27h1v1h-1zM46 27h3v1h-3zM51 27h1v1h-1zM58 27h4v1h-4zM4 28h1v1h-1zM7 28h2v1h-2zM10 28h5v1h-5zM17 28h1v1h-1zM20 28h1v1h-1zM24 28h1v1h-1zM27 28h1v1h-1zM33 28h2v1h-2zM36 28h6v1h-6zM43 28h1v1h-1zM50 28h1v1h-1zM52 28h2v1h-2zM56 28h1v1h-1zM58 28h1v1h-1zM62 28h2v1h-2zM4 29h3v1h-3zM8 29h1v1h-1zM11 29h1v1h-1zM13 29h3v1h-3zM22 29h1v1h-1zM27 29h2v1h-2zM33 29h1v1h-1zM37 29h3v1h-3zM41 29h1v1h-1zM43 29h4v1h-4zM49 29h1v1h-1zM51 29h2v1h-2zM55 29h1v1h-1zM58 29h1v1h-1zM61 29h1v1h-1zM4 30h1v1h-1zM7 30h1v1h-1zM9 30h2v1h-2zM12 30h1v1h-1zM16 30h2v1h-2zM20 30h1v1h-1zM22 30h1v1h-1zM24 30h1v1h-1zM27 30h1v1h-1zM29 30h1v1h-1zM31 30h1v1h-1zM33 30h2v1h-2zM37 30h2v1h-2zM40 30h1v1h-1zM42 30h1v1h-1zM46 30h1v1h-1zM50 30h1v1h-1zM52 30h6v1h-6zM61 30h2v1h-2zM5 31h2v1h-2zM11 31h1v1h-1zM13 31h2v1h-2zM18 31h4v1h-4zM24 31h2v1h-2zM27 31h1v1h-1zM34 31h1v1h-1zM36 31h1v1h-1zM39 31h1v1h-1zM41 31h1v1h-1zM44 31h4v1h-4zM49 31h1v1h-1zM51 31h1v1h-1zM54 31h2v1h-2zM57 31h1v1h-1zM59 31h2v1h-2zM64 31h1v1h-1zM5 32h1v1h-1zM7 32h6v1h-6zM14 32h2v1h-2zM20 32h2v1h-2zM24 32h1v1h-1zM26 32h1v1h-1zM28 32h2v1h-2zM32 32h7v1h-7zM40 32h1v1h-1zM42 32h2v1h-2zM52 32h1v1h-1zM56 32h7v1h-7zM64 32h1v1h-1zM5 33h1v1h-1zM7 33h2v1h-2zM12 33h1v1h-1zM14 33h1v1h-1zM16 33h3v1h-3zM20 33h2v1h-2zM28 33h1v1h-1zM32 33h1v1h-1zM36 33h1v1h-1zM38 33h1v1h-1zM40 33h1v1h-1zM43 33h2v1h-2zM46 33h2v1h-2zM49 33h1v1h-1zM51 33h2v1h-2zM56 33h1v1h-1zM60 33h1v1h-1zM63 33h2v1h-2zM4 34h1v1h-1zM8 34h1v1h-1zM10 34h1v1h-1zM12 34h1v1h-1zM14 34h4v1h-4zM19 34h2v1h-2zM22 34h2v1h-2zM25 34h1v1h-1zM27 34h1v1h-1zM30 34h1v1h-1zM32 34h1v1h-1zM34 34h1v1h-1zM36 34h2v1h-2zM41 34h3v1h-3zM45 34h1v1h-1zM52 34h5v1h-5zM58 34h1v1h-1zM60 34h5v1h-5zM4 35h1v1h-1zM6 35h1v1h-1zM8 35h1v1h-1zM12 35h6v1h-6zM19 35h2v1h-2zM23 35h1v1h-1zM25 35h1v1h-1zM28 35h1v1h-1zM32 35h1v1h-1zM36 35h1v1h-1zM38 35h2v1h-2zM41 35h3v1h-3zM45 35h3v1h-3zM49 35h3v1h-3zM53 35h1v1h-1zM55 35h2v1h-2zM60 35h2v1h-2zM5 36h8v1h-8zM18 36h1v1h-1zM20 36h9v1h-9zM31 36h6v1h-6zM38 36h1v1h-1zM40 36h1v1h-1zM46 36h2v1h-2zM49 36h1v1h-1zM52 36h2v1h-2zM55 36h6v1h-6zM62 36h1v1h-1zM64 36h1v1h-1zM4 37h1v1h-1zM7 37h2v1h-2zM12 37h5v1h-5zM19 37h1v1h-1zM22 37h1v1h-1zM24 37h1v1h-1zM26 37h1v1h-1zM28 37h1v1h-1zM30 37h1v1h-1zM33 37h3v1h-3zM37 37h3v1h-3zM43 37h7v1h-7zM55 37h1v1h-1zM61 37h1v1h-1zM63 37h1v1h-1zM4 38h1v1h-1zM7 38h1v1h-1zM10 38h1v1h-1zM14 38h1v1h-1zM21 38h2v1h-2zM24 38h1v1h-1zM29 38h2v1h-2zM32 38h1v1h-1zM35 38h1v1h-1zM37 38h2v1h-2zM40 38h1v1h-1zM42 38h1v1h-1zM44 38h3v1h-3zM50 38h3v1h-3zM54 38h9v1h-9zM64 38h1v1h-1zM5 39h4v1h-4zM11 39h1v1h-1zM16 39h5v1h-5zM22 39h1v1h-1zM28 39h4v1h-4zM33 39h1v1h-1zM36 39h1v1h-1zM38 39h2v1h-2zM44 39h1v1h-1zM46 39h1v1h-1zM48 39h1v1h-1zM52 39h2v1h-2zM57 39h1v1h-1zM6 40h1v1h-1zM10 40h1v1h-1zM12 40h3v1h-3zM26 40h1v1h-1zM29 40h1v1h-1zM31 40h3v1h-3zM38 40h1v1h-1zM40 40h1v1h-1zM43 40h1v1h-1zM45 40h3v1h-3zM49 40h2v1h-2zM52 40h1v1h-1zM55 40h1v1h-1zM57 40h6v1h-6zM64 40h1v1h-1zM6 41h2v1h-2zM9 41h1v1h-1zM12 41h5v1h-5zM18 41h1v1h-1zM21 41h2v1h-2zM25 41h2v1h-2zM32 41h1v1h-1zM37 41h4v1h-4zM46 41h2v1h-2zM49 41h1v1h-1zM51 41h2v1h-2zM58 41h1v1h-1zM61 41h1v1h-1zM63 41h2v1h-2zM4 42h2v1h-2zM7 42h1v1h-1zM10 42h1v1h-1zM13 42h2v1h-2zM16 42h1v1h-1zM19 42h1v1h-1zM21 42h4v1h-4zM26 42h3v1h-3zM31 42h4v1h-4zM39 42h1v1h-1zM41 42h6v1h-6zM48 42h1v1h-1zM50 42h1v1h-1zM52 42h5v1h-5zM58 42h1v1h-1zM60 42h5v1h-5zM5 43h1v1h-1zM7 43h2v1h-2zM11 43h1v1h-1zM13 43h2v1h-2zM16 43h8v1h-8zM27 43h6v1h-6zM35 43h3v1h-3zM39 43h1v1h-1zM41 43h2v1h-2zM44 43h3v1h-3zM48 43h2v1h-2zM51 43h1v1h-1zM57 43h1v1h-1zM59 43h1v1h-1zM8 44h1v1h-1zM10 44h1v1h-1zM12 44h3v1h-3zM17 44h7v1h-7zM26 44h2v1h-2zM29 44h1v1h-1zM31 44h1v1h-1zM33 44h3v1h-3zM39 44h3v1h-3zM43 44h1v1h-1zM46 44h1v1h-1zM52 44h1v1h-1zM54 44h2v1h-2zM57 44h2v1h-2zM63 44h1v1h-1zM4 45h2v1h-2zM11 45h2v1h-2zM15 45h1v1h-1zM20 45h3v1h-3zM25 45h1v1h-1zM35 45h1v1h-1zM39 45h1v1h-1zM41 45h1v1h-1zM43 45h4v1h-4zM51 45h1v1h-1zM53 45h1v1h-1zM57 45h3v1h-3zM62 45h2v1h-2zM4 46h1v1h-1zM7 46h2v1h-2zM10 46h3v1h-3zM15 46h3v1h-3zM19 46h5v1h-5zM25 46h1v1h-1zM27 46h2v1h-2zM30 46h1v1h-1zM32 46h2v1h-2zM36 46h2v1h-2zM39 46h1v1h-1zM47 46h6v1h-6zM55 46h2v1h-2zM58 46h1v1h-1zM60 46h1v1h-1zM62 46h1v1h-1zM64 46h1v1h-1zM5 47h2v1h-2zM9 47h1v1h-1zM11 47h2v1h-2zM14 47h1v1h-1zM16 47h1v1h-1zM21 47h1v1h-1zM23 47h1v1h-1zM26 47h1v1h-1zM28 47h1v1h-1zM30 47h1v1h-1zM37 47h1v1h-1zM40 47h1v1h-1zM43 47h7v1h-7zM51 47h1v1h-1zM53 47h1v1h-1zM57 47h1v1h-1zM64 47h1v1h-1zM6 48h1v1h-1zM8 48h1v1h-1zM10 48h3v1h-3zM14 48h1v1h-1zM17 48h1v1h-1zM25 48h3v1h-3zM35 48h1v1h-1zM39 48h1v1h-1zM41 48h1v1h-1zM45 48h2v1h-2zM49 48h1v1h-1zM51 48h2v1h-2zM54 48h2v1h-2zM59 48h2v1h-2zM64 48h1v1h-1zM4 49h1v1h-1zM7 49h2v1h-2zM11 49h2v1h-2zM14 49h3v1h-3zM19 49h4v1h-4zM28 49h3v1h-3zM32 49h1v1h-1zM35 49h3v1h-3zM46 49h2v1h-2zM49 49h1v1h-1zM53 49h1v1h-1zM57 49h2v1h-2zM61 49h1v1h-1zM63 49h1v1h-1zM5 50h1v1h-1zM7 50h1v1h-1zM9 50h2v1h-2zM12 50h6v1h-6zM21 50h1v1h-1zM28 50h3v1h-3zM32 50h3v1h-3zM36 50h4v1h-4zM41 50h1v1h-1zM43 50h1v1h-1zM45 50h1v1h-1zM47 50h1v1h-1zM50 50h1v1h-1zM52 50h1v1h-1zM55 50h1v1h-1zM58 50h1v1h-1zM60 50h3v1h-3zM64 50h1v1h-1zM5 51h1v1h-1zM7 51h2v1h-2zM15 51h2v1h-2zM19 51h1v1h-1zM21 51h1v1h-1zM26 51h4v1h-4zM31 51h3v1h-3zM35 51h2v1h-2zM38 51h1v1h-1zM40 51h2v1h-2zM44 51h3v1h-3zM48 51h1v1h-1zM52 51h1v1h-1zM56 51h2v1h-2zM61 51h1v1h-1zM64 51h1v1h-1zM5 52h1v1h-1zM7 52h2v1h-2zM10 52h1v1h-1zM12 52h1v1h-1zM17 52h3v1h-3zM21 52h1v1h-1zM24 52h1v1h-1zM26 52h3v1h-3zM31 52h1v1h-1zM33 52h2v1h-2zM39 52h4v1h-4zM51 52h3v1h-3zM55 52h1v1h-1zM57 52h2v1h-2zM60 52h1v1h-1zM62 52h1v1h-1zM4 53h1v1h-1zM9 53h1v1h-1zM12 53h1v1h-1zM14 53h3v1h-3zM18 53h1v1h-1zM21 53h2v1h-2zM24 53h1v1h-1zM28 53h2v1h-2zM31 53h1v1h-1zM35 53h3v1h-3zM39 53h1v1h-1zM41 53h1v1h-1zM43 53h4v1h-4zM48 53h1v1h-1zM51 53h2v1h-2zM55 53h1v1h-1zM59 53h1v1h-1zM6 54h5v1h-5zM12 54h4v1h-4zM17 54h1v1h-1zM19 54h2v1h-2zM22 54h2v1h-2zM25 54h1v1h-1zM27 54h1v1h-1zM35 54h1v1h-1zM38 54h1v1h-1zM42 54h2v1h-2zM49 54h1v1h-1zM52 54h5v1h-5zM58 54h2v1h-2zM61 54h4v1h-4zM4 55h3v1h-3zM8 55h1v1h-1zM13 55h1v1h-1zM16 55h2v1h-2zM19 55h6v1h-6zM27 55h1v1h-1zM31 55h1v1h-1zM33 55h2v1h-2zM37 55h3v1h-3zM41 55h1v1h-1zM43 55h1v1h-1zM46 55h1v1h-1zM48 55h2v1h-2zM51 55h1v1h-1zM57 55h1v1h-1zM59 55h1v1h-1zM61 55h1v1h-1zM63 55h2v1h-2zM4 56h4v1h-4zM10 56h3v1h-3zM14 56h2v1h-2zM17 56h1v1h-1zM19 56h3v1h-3zM23 56h1v1h-1zM25 56h1v1h-1zM27 56h1v1h-1zM29 56h1v1h-1zM31 56h6v1h-6zM38 56h1v1h-1zM40 56h1v1h-1zM42 56h1v1h-1zM44 56h2v1h-2zM47 56h1v1h-1zM50 56h1v1h-1zM52 56h1v1h-1zM54 56h7v1h-7zM62 56h1v1h-1zM12 57h1v1h-1zM15 57h1v1h-1zM18 57h2v1h-2zM22 57h1v1h-1zM24 57h1v1h-1zM26 57h2v1h-2zM29 57h1v1h-1zM31 57h2v1h-2zM36 57h1v1h-1zM38 57h3v1h-3zM43 57h2v1h-2zM46 57h1v1h-1zM48 57h1v1h-1zM52 57h2v1h-2zM55 57h2v1h-2zM60 57h2v1h-2zM4 58h7v1h-7zM12 58h1v1h-1zM15 58h1v1h-1zM18 58h1v1h-1zM20 58h3v1h-3zM24 58h1v1h-1zM28 58h5v1h-5zM34 58h1v1h-1zM36 58h2v1h-2zM39 58h2v1h-2zM42 58h1v1h-1zM44 58h2v1h-2zM49 58h2v1h-2zM52 58h1v1h-1zM56 58h1v1h-1zM58 58h1v1h-1zM60 58h2v1h-2zM64 58h1v1h-1zM4 59h1v1h-1zM10 59h1v1h-1zM12 59h1v1h-1zM14 59h1v1h-1zM16 59h1v1h-1zM18 59h1v1h-1zM20 59h1v1h-1zM22 59h4v1h-4zM27 59h2v1h-2zM30 59h1v1h-1zM32 59h1v1h-1zM36 59h1v1h-1zM38 59h3v1h-3zM46 59h4v1h-4zM55 59h2v1h-2zM60 59h2v1h-2zM4 60h1v1h-1zM6 60h3v1h-3zM10 60h1v1h-1zM12 60h1v1h-1zM15 60h2v1h-2zM19 60h1v1h-1zM25 60h13v1h-13zM39 60h3v1h-3zM45 60h2v1h-2zM51 60h2v1h-2zM54 60h7v1h-7zM62 60h3v1h-3zM4 61h1v1h-1zM6 61h3v1h-3zM10 61h1v1h-1zM12 61h2v1h-2zM21 61h1v1h-1zM23 61h4v1h-4zM31 61h1v1h-1zM34 61h1v1h-1zM37 61h2v1h-2zM40 61h2v1h-2zM44 61h3v1h-3zM49 61h1v1h-1zM51 61h2v1h-2zM56 61h1v1h-1zM58 61h1v1h-1zM60 61h2v1h-2zM64 61h1v1h-1zM4 62h1v1h-1zM6 62h3v1h-3zM10 62h1v1h-1zM12 62h2v1h-2zM15 62h5v1h-5zM22 62h2v1h-2zM32 62h5v1h-5zM40 62h1v1h-1zM42 62h2v1h-2zM46 62h1v1h-1zM50 62h2v1h-2zM53 62h3v1h-3zM57 62h2v1h-2zM62 62h1v1h-1zM64 62h1v1h-1zM4 63h1v1h-1zM10 63h1v1h-1zM12 63h1v1h-1zM14 63h1v1h-1zM16 63h1v1h-1zM28 63h1v1h-1zM30 63h3v1h-3zM35 63h3v1h-3zM39 63h1v1h-1zM41 63h1v1h-1zM44 63h1v1h-1zM46 63h1v1h-1zM50 63h2v1h-2zM55 63h1v1h-1zM58 63h3v1h-3zM64 63h1v1h-1zM4 64h7v1h-7zM13 64h3v1h-3zM19 64h4v1h-4zM24 64h1v1h-1zM29 64h1v1h-1zM32 64h1v1h-1zM40 64h2v1h-2zM43 64h1v1h-1zM47 64h4v1h-4zM52 64h1v1h-1zM57 64h1v1h-1zM61 64h4v1h-4z"/></svg>
+      <p class="text-xs text-slate-600 italic">Feito por Rafael R. Santoro (2026)</p>
+      <p class="text-sm text-slate-700">Desde já, fico muito agradecido.</p>
+      <div class="pt-2">
+        <button type="button" onclick="fecharModalCafe()" class="px-8 py-2 rounded-xl text-sm font-bold bg-blue-600 text-white hover:bg-blue-700 transition">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL PARA COLAR TABELA (EXCEL / TXT) -->
+  <div id="modal-paste" class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4 no-print">
+    <div class="bg-white rounded-2xl max-w-xl w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <h3 class="font-bold text-slate-900 text-sm flex items-center gap-2">
+          <span>📋</span> Colar Vértices e Coordenadas (Excel / QGIS / AutoCAD)
+        </h3>
+        <button onclick="fecharModalPaste()" class="text-slate-400 hover:text-slate-600 font-bold">✕</button>
+      </div>
+
+      <p class="text-xs text-slate-600">
+        Cole abaixo as colunas copiadas do Excel ou arquivo de texto. 
+        Formatos aceitos: <b>Tabulação (Tab)</b>, <b>Ponto-e-vírgula (;)</b> ou <b>Vírgula</b>.
+        <br/><span class="text-slate-400">Ordem padrão: De / Vértice | Longitude | Latitude | Altitude | Para | Azimute | Distância</span>
+      </p>
+
+      <textarea id="paste-input" rows="7" class="w-full p-3 border border-slate-300 rounded-xl text-xs font-mono focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" placeholder="V-01	-48°00'00,000&quot;	-22°00'00,000&quot;	700,00	V-02	90°00'	100,00
+V-02	-48°00'05,000&quot;	-22°00'05,000&quot;	705,00	V-03	180°00'	150,00"></textarea>
+
+      <div class="flex justify-end gap-2 pt-2">
+        <button onclick="fecharModalPaste()" class="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 transition">Cancelar</button>
+        <button onclick="processarPaste()" class="px-4 py-2 rounded-xl text-xs font-bold bg-blue-600 text-white hover:bg-blue-700 transition">Importar Coordenadas</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCRIPT LÓGICO PRINCIPAL -->
+  <script src="app.js"></script>
+</body>
+</html>
